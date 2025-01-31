@@ -6,10 +6,11 @@ import android.database.Cursor;
 import android.database.SQLException;
 import android.database.sqlite.SQLiteDatabase;
 import android.database.sqlite.SQLiteOpenHelper;
+import android.util.Log;
 
 public class DatabaseHelper extends SQLiteOpenHelper {
     private static final String DATABASE_NAME = "MemoryGame.db";
-    private static final int DATABASE_VERSION = 1;
+    private static final int DATABASE_VERSION = 2; // Increment version
 
     // Table: Users
     private static final String TABLE_USERS = "users";
@@ -17,11 +18,12 @@ public class DatabaseHelper extends SQLiteOpenHelper {
     private static final String COLUMN_USERNAME = "username";
     private static final String COLUMN_PASSWORD = "password";
 
-    // Table: Nicknames
+    // Table: Nicknames (Now with score)
     private static final String TABLE_NICKNAMES = "nicknames";
     private static final String COLUMN_NICKNAME_ID = "id";
     private static final String COLUMN_NICKNAME = "nickname";
     private static final String COLUMN_USER_ID_FK = "user_id"; // Foreign key linking to users table
+    private static final String COLUMN_SCORE = "score"; // New column for storing score
 
     public DatabaseHelper(Context context) {
         super(context, DATABASE_NAME, null, DATABASE_VERSION);
@@ -36,20 +38,23 @@ public class DatabaseHelper extends SQLiteOpenHelper {
                 COLUMN_PASSWORD + " TEXT)";
         db.execSQL(createUsersTable);
 
-        // Create Nicknames Table
+        // Create Nicknames Table with Score Column
         String createNicknamesTable = "CREATE TABLE " + TABLE_NICKNAMES + " (" +
                 COLUMN_NICKNAME_ID + " INTEGER PRIMARY KEY AUTOINCREMENT, " +
                 COLUMN_NICKNAME + " TEXT, " +
                 COLUMN_USER_ID_FK + " INTEGER, " +
+                COLUMN_SCORE + " INTEGER DEFAULT 0, " + // Default score is 0
                 "FOREIGN KEY(" + COLUMN_USER_ID_FK + ") REFERENCES " + TABLE_USERS + "(" + COLUMN_USER_ID + "))";
         db.execSQL(createNicknamesTable);
     }
 
     @Override
     public void onUpgrade(SQLiteDatabase db, int oldVersion, int newVersion) {
-        db.execSQL("DROP TABLE IF EXISTS " + TABLE_USERS);
-        db.execSQL("DROP TABLE IF EXISTS " + TABLE_NICKNAMES);
-        onCreate(db);
+        if (oldVersion < 2) {
+            // Upgrade database by adding the score column to nicknames table if not already added
+            String addScoreColumn = "ALTER TABLE " + TABLE_NICKNAMES + " ADD COLUMN " + COLUMN_SCORE + " INTEGER DEFAULT 0";
+            db.execSQL(addScoreColumn);
+        }
     }
 
     // ============================== USER AUTHENTICATION ==============================
@@ -107,7 +112,16 @@ public class DatabaseHelper extends SQLiteOpenHelper {
     // Get all nicknames for a user
     public Cursor getAllNicknames(int userId) {
         SQLiteDatabase db = this.getReadableDatabase();
-        return db.rawQuery("SELECT * FROM " + TABLE_NICKNAMES + " WHERE " + COLUMN_USER_ID_FK + " = ?", new String[]{String.valueOf(userId)});
+        Cursor cursor = db.rawQuery("SELECT * FROM " + TABLE_NICKNAMES + " WHERE " + COLUMN_USER_ID_FK + " = ?", new String[]{String.valueOf(userId)});
+
+        // Debugging log to check cursor data
+        if (cursor != null) {
+            Log.d("DatabaseHelper", "Found " + cursor.getCount() + " records for user " + userId);
+        } else {
+            Log.e("DatabaseHelper", "Cursor is null or query failed");
+        }
+
+        return cursor;
     }
 
     // Update a nickname
@@ -125,5 +139,32 @@ public class DatabaseHelper extends SQLiteOpenHelper {
         SQLiteDatabase db = this.getWritableDatabase();
         int rowsDeleted = db.delete(TABLE_NICKNAMES, COLUMN_NICKNAME_ID + " = ?", new String[]{String.valueOf(nicknameId)});
         return rowsDeleted > 0;
+    }
+
+    // ============================== SCORE OPERATIONS ==============================
+
+    // Set or update score for a nickname
+    public boolean setScore(int nicknameId, int score) {
+        SQLiteDatabase db = this.getWritableDatabase();
+        ContentValues values = new ContentValues();
+        values.put(COLUMN_SCORE, score);
+
+        int rowsAffected = db.update(TABLE_NICKNAMES, values, COLUMN_NICKNAME_ID + " = ?", new String[]{String.valueOf(nicknameId)});
+        return rowsAffected > 0;
+    }
+
+    // Get the score of a specific nickname
+    public int getScore(int nicknameId) {
+        SQLiteDatabase db = this.getReadableDatabase();
+        Cursor cursor = db.rawQuery("SELECT " + COLUMN_SCORE + " FROM " + TABLE_NICKNAMES + " WHERE " + COLUMN_NICKNAME_ID + " = ?", new String[]{String.valueOf(nicknameId)});
+
+        if (cursor.moveToFirst()) {
+            int score = cursor.getInt(0);
+            cursor.close();
+            return score;
+        } else {
+            cursor.close();
+            return 0; // Default score if no record is found
+        }
     }
 }

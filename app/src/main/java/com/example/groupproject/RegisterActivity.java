@@ -2,6 +2,7 @@ package com.example.groupproject;
 
 import android.content.Intent;
 import android.os.Bundle;
+import android.view.View;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.Toast;
@@ -40,7 +41,13 @@ public class RegisterActivity extends AppCompatActivity {
             if (!username.isEmpty() && !password.isEmpty()) {
                 if (dbHelper.registerUser(username, password)) {
                     Toast.makeText(this, "Registration successful!", Toast.LENGTH_SHORT).show();
-                    startActivity(new Intent(this, LoginActivity.class));
+
+                    // Navigate to NicknameActivity after successful registration
+                    Intent intent = new Intent(this, NicknameActivity.class);
+                    intent.putExtra("USERNAME", username); // Passing username for reference if needed
+                    startActivity(intent);
+                    finish(); // Close RegisterActivity
+
                 } else {
                     Toast.makeText(this, "Username already exists!", Toast.LENGTH_SHORT).show();
                 }
@@ -49,4 +56,10 @@ public class RegisterActivity extends AppCompatActivity {
             }
         });
     }
+
+    public void goToLogin(View view) {
+        Intent intent = new Intent(this, LoginActivity.class);
+        startActivity(intent);
+    }
+
 }

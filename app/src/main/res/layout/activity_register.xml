@@ -15,35 +15,44 @@
         android:text="Register"
         android:textSize="24sp"
         android:textStyle="bold"
-        android:layout_gravity="center"/>
+        android:layout_gravity="center"
+        android:paddingBottom="10dp"/>
 
     <EditText
         android:id="@+id/editTextUsername"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:hint="Enter Username"
-        android:inputType="text"/>
+        android:inputType="text"
+        android:padding="10dp"
+        android:background="@android:drawable/edit_text"/>
 
     <EditText
         android:id="@+id/editTextPassword"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:hint="Enter Password"
-        android:inputType="textPassword"/>
+        android:inputType="textPassword"
+        android:padding="10dp"
+        android:background="@android:drawable/edit_text"/>
 
     <Button
         android:id="@+id/btnRegister"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="Register"/>
+        android:text="Register"
+        android:layout_marginTop="10dp"/>
 
     <TextView
+        android:id="@+id/textViewLogin"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:text="Already have an account? Login"
         android:textColor="@android:color/holo_blue_dark"
         android:paddingTop="10dp"
         android:clickable="true"
+        android:focusable="true"
+        android:layout_gravity="center"
         android:onClick="goToLogin"/>
 
 </LinearLayout>

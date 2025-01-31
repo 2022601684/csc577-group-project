@@ -3,6 +3,7 @@ package com.example.groupproject;
 import android.animation.Animator;
 import android.animation.AnimatorListenerAdapter;
 import android.animation.ObjectAnimator;
+import android.content.Intent;
 import android.os.Bundle;
 import android.os.Handler;
 import android.view.View;
@@ -10,6 +11,7 @@ import android.widget.AdapterView;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.GridView;
+import android.widget.TextView;
 import android.widget.Toast;
 
 import androidx.activity.EdgeToEdge;
@@ -24,6 +26,11 @@ import java.util.Collections;
 import java.util.List;
 
 public class MainActivity extends AppCompatActivity {
+
+    private TextView nicknameText, signUpOption, scoreTextView, timerTextView;
+    private int timeTaken = 0;  // Time in seconds
+    private Handler timerHandler = new Handler();
+    private Runnable timerRunnable;
 
     private GridView gridView;
     private GridAdapter adapter;
@@ -43,6 +50,10 @@ public class MainActivity extends AppCompatActivity {
     private boolean isChecking = false;
     private Handler handler = new Handler();
 
+    private int pairsMatched = 0;
+    private int incorrectGuesses = 0;
+    private int score = 0;  // Initial score
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -55,17 +66,64 @@ public class MainActivity extends AppCompatActivity {
             return insets;
         });
 
+        nicknameText = findViewById(R.id.nickname_text);
+        signUpOption = findViewById(R.id.sign_up_option);
+        timerTextView = findViewById(R.id.timerTextView);
+        scoreTextView = findViewById(R.id.scoreTextView);
         gridView = findViewById(R.id.gridView);
+
         // Find the Button
         Button playButton = findViewById(R.id.playButton);
+        Button resetButton = findViewById(R.id.resetButton);
+        Button exitButton = findViewById(R.id.exitButton);
+
+        // Get the nickname from the intent
+        Intent intent = getIntent();
+        String nickname = intent.getStringExtra("nickname");
+
+        if (nickname != null && !nickname.isEmpty()) {
+            nicknameText.setText(nickname); // Update the TextView
+        } else {
+            nicknameText.setText("Guest"); // Fallback if no nickname is passed
+        }
+
+        // Navigate to RegisterActivity when "Sign Up" is clicked
+        signUpOption.setOnClickListener(v -> {
+            Intent intentToRegister = new Intent(MainActivity.this, RegisterActivity.class);
+            startActivity(intentToRegister);
+        });
 
         // Set the listener for the reset button
         playButton.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                setupGame();
+                setupGame();  // Set up the game and start the timer when the play button is clicked
+                startTimer();  // Start the timer when the game begins
+
+                // Show all cards briefly at the start
+                showAllCardsTemporarily();
             }
         });
+
+        // Set the listener for the reset button
+        resetButton.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                resetGame();
+                startTimer();
+
+                showAllCardsTemporarily();
+            }
+        });
+
+        // Set the listener for the exit button
+        exitButton.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                finish();
+            }
+        });
+
         setupGame(); // Initialize the game
 
         gridView.setOnItemClickListener(new AdapterView.OnItemClickListener() {
@@ -74,22 +132,19 @@ public class MainActivity extends AppCompatActivity {
                 handleCardClick(position);
             }
         });
+    }
 
-        // Show all cards briefly at the start
-        showAllCardsTemporarily();
-
-        // Find the Button
-        Button resetButton = findViewById(R.id.resetButton);
-
-        // Set the listener for the reset button
-        resetButton.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                showAllCardsTemporarily();
-
-                resetGame();
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+        if (resultCode == RESULT_OK) {
+            String nickname = data.getStringExtra("NICKNAME");
+            if (nickname != null) {
+                // Update the nickname in your UI
+                TextView nicknameText = findViewById(R.id.nickname_text);
+                nicknameText.setText(nickname);
             }
-        });
+        }
     }
 
     private void showAllCardsTemporarily() {
@@ -113,6 +168,12 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void setupGame() {
+        // Initialize game variables
+        pairsMatched = 0;
+        incorrectGuesses = 0;
+        timeTaken = 0;
+        score = 0;
+
         List<Integer> imageList = new ArrayList<>(Arrays.asList(allImages));
 
         // Shuffle all images and pick 8 random ones
@@ -161,6 +222,8 @@ public class MainActivity extends AppCompatActivity {
     private void checkForMatch() {
         if (selectedImages[firstSelected].equals(selectedImages[secondSelected])) {
             matchedPairs++;
+            pairsMatched++;
+            updateScoreDisplay();  // Update the score when a match happens
 
             // Fade out animation for matched cards
             gridView.getChildAt(firstSelected).animate().alpha(0).setDuration(500);
@@ -168,8 +231,12 @@ public class MainActivity extends AppCompatActivity {
 
             if (matchedPairs == 8) {
                 Toast.makeText(this, "You won!", Toast.LENGTH_SHORT).show();
+                stopTimer();  // Stop the timer when the game is won
             }
         } else {
+            incorrectGuesses++;
+            updateScoreDisplay();  // Update the score when an incorrect guess happens
+
             // Flip back animation for non-matching cards
             flipBack(gridView.getChildAt(firstSelected), firstSelected);
             flipBack(gridView.getChildAt(secondSelected), secondSelected);
@@ -181,10 +248,77 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void resetGame() {
+        // Reset UI and game state
+        pairsMatched = 0;
+        incorrectGuesses = 0;
+        timeTaken = 0;
+        score = 0;
+
         matchedPairs = 0;
         firstSelected = -1;
         secondSelected = -1;
+
+        // Update score display
+        updateScoreDisplay();
+
+        Toast.makeText(this, "Game Reset!", Toast.LENGTH_SHORT).show();
+
         setupGame();
+    }
+
+    // Method to start the timer and update it
+    private void startTimer() {
+        // Initialize and start the timer when the play button is clicked
+        timeTaken = 0;  // Reset timer at the start
+        updateTimerDisplay();
+
+        // Runnable to update the timer every second
+        timerRunnable = new Runnable() {
+            @Override
+            public void run() {
+                timeTaken++;  // Increment the time
+                updateTimerDisplay();  // Update the timer display
+
+                // Repeat the task every second (1000 milliseconds)
+                timerHandler.postDelayed(this, 1000);
+            }
+        };
+
+        // Start the timer immediately
+        timerHandler.postDelayed(timerRunnable, 1000);
+    }
+
+    private void updateTimerDisplay() {
+        int minutes = timeTaken / 60;
+        int seconds = timeTaken % 60;
+
+        // Format the time to always show two digits for minutes and seconds
+        String timeString = String.format("Time: %02d:%02d", minutes, seconds);
+        timerTextView.setText(timeString);
+    }
+
+    private void stopTimer() {
+        timerHandler.removeCallbacks(timerRunnable);  // Stop the timer
+    }
+
+    // Method to calculate the score
+    private void calculateScore() {
+        int pointsPerPair = 50;
+        int penaltyPerIncorrectGuess = 5;
+        int bonusForSpeed = (timeTaken <= 30) ? 20 : 0;  // Bonus if completed in under 30 seconds
+
+        score = (pairsMatched * pointsPerPair) - (incorrectGuesses * penaltyPerIncorrectGuess) + bonusForSpeed;
+
+        // Optional: Deduct time penalty
+        int timePenalty = timeTaken * 1;  // Deduct 1 point per second
+        score = Math.max(0, score - timePenalty);  // Ensure score doesn't go below 0
+    }
+
+    // Method to update the score display
+    private void updateScoreDisplay() {
+        calculateScore();
+        // Update the score TextView with the current score
+        scoreTextView.setText("Score: " + score);
     }
 
     private void flipCard(View cardView, int position) {
@@ -225,6 +359,4 @@ public class MainActivity extends AppCompatActivity {
 
         flipOut.start(); // Start the first half of the flip
     }
-
-
 }
