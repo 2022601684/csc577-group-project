@@ -86,15 +86,26 @@ public class MainActivity extends AppCompatActivity {
 
         if (nickname != null && !nickname.isEmpty()) {
             nicknameText.setText(nickname); // Update the TextView
+            signUpOption.setText("Log out");
         } else {
             nicknameText.setText("Guest"); // Fallback if no nickname is passed
         }
 
-        // Navigate to RegisterActivity when "Sign Up" is clicked
-        signUpOption.setOnClickListener(v -> {
-            Intent intentToRegister = new Intent(MainActivity.this, RegisterActivity.class);
-            startActivity(intentToRegister);
+        signUpOption.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                if (nicknameText.getText().toString().equals("Guest")) {
+                    // User is not logged in, so allow them to sign up
+                    Intent intentToRegister = new Intent(MainActivity.this, RegisterActivity.class);
+                    startActivity(intentToRegister);
+                    finish();
+                } else {
+                    // User is logged in, so allow them to log out
+                    logoutUser();
+                }
+            }
         });
+
 
         Button highScoresButton = findViewById(R.id.highScoresButton);
         highScoresButton.setOnClickListener(new View.OnClickListener() {
@@ -145,15 +156,20 @@ public class MainActivity extends AppCompatActivity {
         });
     }
 
+    private void logoutUser() {
+        // Set the nickname to "Guest" and update the UI accordingly
+        nicknameText.setText("Guest");
+        signUpOption.setText("Sign Up"); // Change the button text back to "Sign Up"
+    }
+
     @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
-        if (resultCode == RESULT_OK) {
-            String nickname = data.getStringExtra("NICKNAME");
+        if (resultCode == RESULT_OK && data != null) {
+            String nickname = data.getStringExtra("nickname");
             if (nickname != null) {
-                // Update the nickname in your UI
-                TextView nicknameText = findViewById(R.id.nickname_text);
                 nicknameText.setText(nickname);
+                signUpOption.setText("Log Out"); // Change button to log out when logged in
             }
         }
     }

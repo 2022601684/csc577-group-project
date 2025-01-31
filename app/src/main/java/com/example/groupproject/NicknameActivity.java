@@ -110,6 +110,7 @@ public class NicknameActivity extends AppCompatActivity {
                 Intent intent = new Intent(NicknameActivity.this, MainActivity.class);
                 intent.putExtra("nickname", selectedNickname); // Pass the nickname
                 startActivity(intent);
+                finish();
             }
         });
     }
