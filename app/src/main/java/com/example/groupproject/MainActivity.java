@@ -4,6 +4,8 @@ import android.animation.Animator;
 import android.animation.AnimatorListenerAdapter;
 import android.animation.ObjectAnimator;
 import android.content.Intent;
+import android.database.Cursor;
+import android.database.sqlite.SQLiteDatabase;
 import android.os.Bundle;
 import android.os.Handler;
 import android.view.View;
@@ -15,6 +17,7 @@ import android.widget.TextView;
 import android.widget.Toast;
 
 import androidx.activity.EdgeToEdge;
+import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.graphics.Insets;
 import androidx.core.view.ViewCompat;
@@ -91,6 +94,14 @@ public class MainActivity extends AppCompatActivity {
         signUpOption.setOnClickListener(v -> {
             Intent intentToRegister = new Intent(MainActivity.this, RegisterActivity.class);
             startActivity(intentToRegister);
+        });
+
+        Button highScoresButton = findViewById(R.id.highScoresButton);
+        highScoresButton.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                showHighScores();
+            }
         });
 
         // Set the listener for the reset button
@@ -298,7 +309,60 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void stopTimer() {
-        timerHandler.removeCallbacks(timerRunnable);  // Stop the timer
+        timerHandler.removeCallbacks(timerRunnable);
+
+        // Save score in database
+        DatabaseHelper dbHelper = new DatabaseHelper(this);
+
+        // Get the nickname ID (You need to retrieve this based on the logged-in user)
+        int nicknameId = getNicknameIdFromDatabase(); // Implement this method
+
+        if (nicknameId != -1) {
+            boolean success = dbHelper.setScore(nicknameId, score);
+            if (success) {
+                Toast.makeText(this, "Score saved!", Toast.LENGTH_SHORT).show();
+            } else {
+                Toast.makeText(this, "Failed to save score.", Toast.LENGTH_SHORT).show();
+            }
+        }
+    }
+
+    private int getNicknameIdFromDatabase() {
+        DatabaseHelper dbHelper = new DatabaseHelper(this);
+        SQLiteDatabase db = dbHelper.getReadableDatabase();
+
+        Cursor cursor = db.rawQuery("SELECT id FROM nicknames WHERE nickname = ?",
+                new String[]{nicknameText.getText().toString()}); // Get nickname from input field
+
+        if (cursor.moveToFirst()) {
+            int nicknameId = cursor.getInt(0);
+            cursor.close();
+            return nicknameId;
+        } else {
+            cursor.close();
+            return -1; // Nickname not found
+        }
+    }
+
+    private void showHighScores() {
+        DatabaseHelper dbHelper = new DatabaseHelper(this);
+        SQLiteDatabase db = dbHelper.getReadableDatabase();
+
+        Cursor cursor = db.rawQuery("SELECT nickname, score FROM nicknames ORDER BY score DESC", null);
+
+        StringBuilder scoreText = new StringBuilder();
+        while (cursor.moveToNext()) {
+            String nickname = cursor.getString(0);
+            int score = cursor.getInt(1);
+            scoreText.append(nickname).append(": ").append(score).append("\n");
+        }
+        cursor.close();
+
+        new AlertDialog.Builder(this)
+                .setTitle("Leaderboard")
+                .setMessage(scoreText.toString())
+                .setPositiveButton("OK", null)
+                .show();
     }
 
     // Method to calculate the score
