@@ -44,7 +44,7 @@ public class RegisterActivity extends AppCompatActivity {
 
                     // Navigate to NicknameActivity after successful registration
                     Intent intent = new Intent(this, NicknameActivity.class);
-                    intent.putExtra("USERNAME", username); // Passing username for reference if needed
+                    intent.putExtra("username", username); // Passing username for reference if needed
                     startActivity(intent);
                     finish(); // Close RegisterActivity
 

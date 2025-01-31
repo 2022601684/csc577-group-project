@@ -4,6 +4,7 @@ import android.animation.Animator;
 import android.animation.AnimatorListenerAdapter;
 import android.animation.ObjectAnimator;
 import android.content.Intent;
+import android.content.SharedPreferences;
 import android.database.Cursor;
 import android.database.sqlite.SQLiteDatabase;
 import android.os.Bundle;
@@ -31,6 +32,8 @@ import java.util.List;
 public class MainActivity extends AppCompatActivity {
 
     private TextView nicknameText, signUpOption, scoreTextView, timerTextView;
+    private Button playButton, resetButton, exitButton;
+    private SharedPreferences sharedPreferences;
     private int timeTaken = 0;  // Time in seconds
     private Handler timerHandler = new Handler();
     private Runnable timerRunnable;
@@ -69,16 +72,24 @@ public class MainActivity extends AppCompatActivity {
             return insets;
         });
 
+        // Initialize UI Components
         nicknameText = findViewById(R.id.nickname_text);
         signUpOption = findViewById(R.id.sign_up_option);
         timerTextView = findViewById(R.id.timerTextView);
         scoreTextView = findViewById(R.id.scoreTextView);
         gridView = findViewById(R.id.gridView);
+        playButton = findViewById(R.id.playButton);
+        resetButton = findViewById(R.id.resetButton);
+        exitButton = findViewById(R.id.exitButton);
 
-        // Find the Button
-        Button playButton = findViewById(R.id.playButton);
-        Button resetButton = findViewById(R.id.resetButton);
-        Button exitButton = findViewById(R.id.exitButton);
+        // Initialize SharedPreferences
+        sharedPreferences = getSharedPreferences("userPreferences", MODE_PRIVATE);
+
+        gridView.setEnabled(false); // Disable clicks at start
+        resetButton.setEnabled(false); // Disable the Reset button initially
+
+        // Check user login status
+        checkLoginStatus();
 
         // Get the nickname from the intent
         Intent intent = getIntent();
@@ -119,6 +130,9 @@ public class MainActivity extends AppCompatActivity {
         playButton.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
+                gridView.setEnabled(true);  // Enable clicks when Play is pressed
+                resetButton.setEnabled(true); // Enable the Reset button
+
                 setupGame();  // Set up the game and start the timer when the play button is clicked
                 startTimer();  // Start the timer when the game begins
 
@@ -132,9 +146,6 @@ public class MainActivity extends AppCompatActivity {
             @Override
             public void onClick(View v) {
                 resetGame();
-                startTimer();
-
-                showAllCardsTemporarily();
             }
         });
 
@@ -156,6 +167,42 @@ public class MainActivity extends AppCompatActivity {
         });
     }
 
+    private void checkLoginStatus() {
+        boolean isLoggedIn = sharedPreferences.getBoolean("isLoggedIn", false);
+        String nickname = sharedPreferences.getString("nickname", "Guest");
+
+        if (isLoggedIn && !nickname.isEmpty()) {
+            nicknameText.setText(nickname);
+            nicknameText.setClickable(true);
+            nicknameText.setFocusable(true);
+            nicknameText.setOnClickListener(v -> openNicknameActivity());
+            signUpOption.setText("Log Out");
+        } else {
+            setGuestMode();
+        }
+
+        signUpOption.setOnClickListener(v -> {
+            if (isLoggedIn) {
+                logoutUser();
+            } else {
+                startActivity(new Intent(MainActivity.this, RegisterActivity.class));
+                finish();
+            }
+        });
+    }
+
+    private void setGuestMode() {
+        nicknameText.setText("Guest");
+        nicknameText.setClickable(false);
+        nicknameText.setFocusable(false);
+        signUpOption.setText("Sign Up");
+    }
+
+    private void openNicknameActivity() {
+        Intent intent = new Intent(MainActivity.this, NicknameActivity.class);
+        startActivity(intent);
+    }
+
     private void logoutUser() {
         // Set the nickname to "Guest" and update the UI accordingly
         nicknameText.setText("Guest");
@@ -175,23 +222,29 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void showAllCardsTemporarily() {
+        gridView.setEnabled(false);
+
         for (int i = 0; i < revealed.length; i++) {
             revealed[i] = 1; // Show all cards
             View cardView = gridView.getChildAt(i);
             if (cardView != null) {
-                cardView.setScaleX(0f);
-                cardView.setScaleY(0f);
-                cardView.animate().scaleX(1f).scaleY(1f).setDuration(1000);
+                flipCard(gridView.getChildAt(i), i);
             }
         }
         adapter.notifyDataSetChanged();
 
         new Handler().postDelayed(() -> {
             for (int i = 0; i < revealed.length; i++) {
-                revealed[i] = 0;
+                revealed[i] = 0; // Hide all cards again
+                View cardView = gridView.getChildAt(i);
+                if (cardView != null) {
+                    flipCard(gridView.getChildAt(i), i);
+                }
             }
             adapter.notifyDataSetChanged();
         }, 2000);
+
+        gridView.setEnabled(true);
     }
 
     private void setupGame() {
@@ -275,26 +328,50 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void resetGame() {
-        // Reset UI and game state
-        pairsMatched = 0;
-        incorrectGuesses = 0;
-        timeTaken = 0;
+        // Stop the timer and reset everything
+        stopTimer(); // This stops the timer and saves the score
+
+        // Reset the score
         score = 0;
+        scoreTextView.setText("Score: " + score);
 
-        matchedPairs = 0;
-        firstSelected = -1;
-        secondSelected = -1;
+        // Reset the timer (time is set to 0:00)
+        int minutes = 0;
+        int seconds = 0;
 
-        // Update score display
-        updateScoreDisplay();
+        // Format the time in "Time: MM:SS" format
+        String timeString = String.format("Time: %02d:%02d", minutes, seconds);
+        timerTextView.setText(timeString); // Update the timer TextView with the formatted time
 
-        Toast.makeText(this, "Game Reset!", Toast.LENGTH_SHORT).show();
+        // Show all cards and reset their state to visible
+        for (int i = 0; i < revealed.length; i++) {
+            revealed[i] = 1; // Set all cards as revealed (visible)
+            View cardView = gridView.getChildAt(i);
+            if (cardView != null) {
+                // Show the card by resetting its scale and alpha
+                cardView.setScaleX(1f);
+                cardView.setScaleY(1f);
+                cardView.setAlpha(1f);
+                cardView.setVisibility(View.VISIBLE);  // Ensure cards are visible
+            }
+        }
 
-        setupGame();
+        // Update the GridView to reflect the reset state
+        adapter.notifyDataSetChanged(); // This ensures the cards are shown as reset
+
+        // Re-enable the play button (in case it was disabled during the game)
+        playButton.setEnabled(true);
+        playButton.setVisibility(View.VISIBLE);
+
+        showAllCardsTemporarily();
     }
 
     // Method to start the timer and update it
     private void startTimer() {
+        // Disable the Play button when timer starts
+        Button playButton = findViewById(R.id.playButton);
+        playButton.setEnabled(false);  // Disable Play button
+
         // Initialize and start the timer when the play button is clicked
         timeTaken = 0;  // Reset timer at the start
         updateTimerDisplay();

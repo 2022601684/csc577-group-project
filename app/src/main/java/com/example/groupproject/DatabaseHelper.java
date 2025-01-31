@@ -100,14 +100,40 @@ public class DatabaseHelper extends SQLiteOpenHelper {
 
     // Add a nickname
     public boolean addNickname(String nickname, int userId) {
-        SQLiteDatabase db = this.getWritableDatabase();
-        ContentValues values = new ContentValues();
-        values.put(COLUMN_NICKNAME, nickname);
-        values.put(COLUMN_USER_ID_FK, userId);
+        SQLiteDatabase db = null;
+        boolean result = false;
 
-        long result = db.insert(TABLE_NICKNAMES, null, values);
-        return result != -1;
+        try {
+            db = this.getWritableDatabase();
+
+            // Check if the database is open for writing
+            if (db != null) {
+                ContentValues values = new ContentValues();
+                values.put(COLUMN_NICKNAME, nickname);
+                values.put(COLUMN_USER_ID_FK, userId);
+
+                // Insert the nickname into the table
+                long insertResult = db.insert(TABLE_NICKNAMES, null, values);
+
+                // Check if the insert was successful
+                if (insertResult != -1) {
+                    result = true;
+                    Log.d("Database", "Nickname added successfully. Insert ID: " + insertResult);
+                } else {
+                    Log.e("Database", "Failed to add nickname.");
+                }
+            }
+        } catch (Exception e) {
+            Log.e("Database", "Error adding nickname", e);
+        } finally {
+            if (db != null) {
+                db.close(); // Ensure the database is closed after the operation
+            }
+        }
+
+        return result;
     }
+
 
     // Get all nicknames for a user
     public Cursor getAllNicknames(int userId) {

@@ -51,6 +51,14 @@ public class NicknameActivity extends AppCompatActivity {
         // Assuming you are getting the username from the logged-in session or intent
         currentUsername = getIntent().getStringExtra("username"); // Pass username from LoginActivity
 
+        // Log to check if currentUsername is null or empty
+        if (currentUsername == null || currentUsername.isEmpty()) {
+            Log.e("NicknameActivity", "Error: Username is null or empty");
+            Toast.makeText(this, "Session expired, please log in again.", Toast.LENGTH_SHORT).show();
+            startActivity(new Intent(this, LoginActivity.class));
+            finish(); // Close NicknameActivity to prevent unresponsive buttons
+        }
+
         // Get user ID based on the username
         int userId = dbHelper.getUserId(currentUsername);
 
@@ -89,19 +97,29 @@ public class NicknameActivity extends AppCompatActivity {
         });
 
         btnDelete.setOnClickListener(view -> {
-            if (selectedNicknameId != -1) {
+            if (selectedNicknameId != -1) {  // Ensure a nickname is selected
                 if (dbHelper.deleteNickname(selectedNicknameId)) {
                     Toast.makeText(this, "Nickname deleted!", Toast.LENGTH_SHORT).show();
-                    loadNicknames(userId); // Refresh the nickname list
+                    selectedNicknameId = -1; // Reset selection
+                    loadNicknames(dbHelper.getUserId(currentUsername)); // Refresh list
                 } else {
                     Toast.makeText(this, "Error deleting nickname!", Toast.LENGTH_SHORT).show();
                 }
+            } else {
+                Toast.makeText(this, "Select a nickname first!", Toast.LENGTH_SHORT).show();
             }
         });
 
+
         listViewNicknames.setOnItemClickListener((parent, view, position, id) -> {
-            selectedNicknameId = position + 1; // Assuming ID starts from 1
-            editTextNickname.setText(nicknamesList.get(position));
+            // Retrieve stored IDs
+            ArrayList<Integer> nicknameIds = (ArrayList<Integer>) listViewNicknames.getTag();
+
+            if (nicknameIds != null && position < nicknameIds.size()) {
+                selectedNicknameId = nicknameIds.get(position); // Get correct ID
+                editTextNickname.setText(nicknamesList.get(position)); // Show selected nickname
+                Log.d("NicknameActivity", "Selected Nickname ID: " + selectedNicknameId);
+            }
         });
 
         btnGoToMain.setOnClickListener(view -> {
@@ -116,7 +134,7 @@ public class NicknameActivity extends AppCompatActivity {
     }
 
     private void loadNicknames(int userId) {
-        Cursor cursor = dbHelper.getAllNicknames(userId);  // Pass userId to load nicknames
+        Cursor cursor = dbHelper.getAllNicknames(userId);
 
         if (cursor == null) {
             Log.e("NicknameActivity", "Cursor is null, no data fetched");
@@ -124,14 +142,15 @@ public class NicknameActivity extends AppCompatActivity {
         }
 
         nicknamesList = new ArrayList<>();
+        ArrayList<Integer> nicknameIds = new ArrayList<>(); // Store actual DB IDs
 
         if (cursor.moveToFirst()) {
             do {
-                String nickname = cursor.getString(cursor.getColumnIndex("nickname"));
-                Log.d("NicknameActivity", "Loaded nickname: " + nickname);
+                int id = cursor.getInt(cursor.getColumnIndexOrThrow("id"));
+                String nickname = cursor.getString(cursor.getColumnIndexOrThrow("nickname"));
                 nicknamesList.add(nickname);
+                nicknameIds.add(id); // Save the actual ID
             } while (cursor.moveToNext());
-
             cursor.close();
         } else {
             Log.e("NicknameActivity", "No nicknames found in the database.");
@@ -143,5 +162,8 @@ public class NicknameActivity extends AppCompatActivity {
 
         adapter = new ArrayAdapter<>(this, android.R.layout.simple_list_item_1, nicknamesList);
         listViewNicknames.setAdapter(adapter);
+
+        // Store the mapping of ID -> nickname
+        listViewNicknames.setTag(nicknameIds);
     }
 }
